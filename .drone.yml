@@ -454,7 +454,7 @@ steps:
     image: plugins/slack
     settings:
       webhook:
-        from_secret: SLACK_WEBHOOK_DEV_TELEPORT
+        from_secret: SLACK_WEBHOOK_GUSTEST
       channel: dev-teleport
       template: |
         *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
@@ -565,7 +565,7 @@ steps:
     image: plugins/slack
     settings:
       webhook:
-        from_secret: SLACK_WEBHOOK_DEV_TELEPORT
+        from_secret: SLACK_WEBHOOK_GUSTEST
       channel: dev-teleport
       template: |
         *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
@@ -680,7 +680,7 @@ steps:
     image: plugins/slack
     settings:
       webhook:
-        from_secret: SLACK_WEBHOOK_DEV_TELEPORT
+        from_secret: SLACK_WEBHOOK_GUSTEST
       channel: dev-teleport
       template: |
         *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
@@ -791,7 +791,7 @@ steps:
     image: plugins/slack
     settings:
       webhook:
-        from_secret: SLACK_WEBHOOK_DEV_TELEPORT
+        from_secret: SLACK_WEBHOOK_GUSTEST
       channel: dev-teleport
       template: |
         *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
@@ -916,7 +916,7 @@ steps:
   - name: Send Slack notification (exec)
     environment:
       SLACK_WEBHOOK:
-        from_secret: SLACK_WEBHOOK_DEV_TELEPORT
+        from_secret: SLACK_WEBHOOK_GUSTEST
     commands:
       - |
         export DRONE_BUILD_LINK="${DRONE_SYSTEM_PROTO}://${DRONE_SYSTEM_HOSTNAME}/${DRONE_REPO_OWNER}/${DRONE_REPO_NAME}/${DRONE_BUILD_NUMBER}"
@@ -1032,7 +1032,7 @@ steps:
   - name: Send Slack notification (exec)
     environment:
       SLACK_WEBHOOK:
-        from_secret: SLACK_WEBHOOK_DEV_TELEPORT
+        from_secret: SLACK_WEBHOOK_GUSTEST
     commands:
       - |
         export DRONE_BUILD_LINK="${DRONE_SYSTEM_PROTO}://${DRONE_SYSTEM_HOSTNAME}/${DRONE_REPO_OWNER}/${DRONE_REPO_NAME}/${DRONE_BUILD_NUMBER}"
@@ -1148,7 +1148,7 @@ steps:
   - name: Send Slack notification (exec)
     environment:
       SLACK_WEBHOOK:
-        from_secret: SLACK_WEBHOOK_DEV_TELEPORT
+        from_secret: SLACK_WEBHOOK_GUSTEST
     commands:
       - |
         export DRONE_BUILD_LINK="${DRONE_SYSTEM_PROTO}://${DRONE_SYSTEM_HOSTNAME}/${DRONE_REPO_OWNER}/${DRONE_REPO_NAME}/${DRONE_BUILD_NUMBER}"
@@ -4095,6 +4095,6 @@ volumes:
 
 ---
 kind: signature
-hmac: e5da0c53ffdb72330fd996516f203d50c855d63b9ba1db97123d2c199089283d
+hmac: c5274537b0751144bc5bb9e089aad90572b04cc2de4bd0573d4c653a7233385e
 
 ...
