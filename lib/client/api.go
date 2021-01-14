@@ -998,11 +998,11 @@ func (tc *TeleportClient) WithRootClusterClient(ctx context.Context, do func(clt
 // Gets a Dialer compatible with a regular network dialer to connect through a remote destination relayed via the
 // specified Proxy and remote client
 // This version takes a context as well compatible with http.Transport's DialContext
-func (tc *TeleportClient) GetRemoteDialerWithContext() (func(ctx context.Context, n string, addr string) (net.Conn, error)) {
+func (tc *TeleportClient) GetRemoteDialerWithContext() func(ctx context.Context, n string, addr string) (net.Conn, error) {
 	return func(ctx context.Context, n string, addr string) (net.Conn, error) {
 		dialer, err := tc.GetRemoteDialer(ctx)
 		if err != nil {
-			return nil, err
+			return nil, trace.Wrap(err)
 		}
 		return dialer(n, addr)
 	}
@@ -1017,16 +1017,16 @@ func (tc *TeleportClient) GetRemoteDialer(ctx context.Context) (func(n, addr str
 	}
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	siteInfo, err := proxyClient.currentCluster()
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	// which nodes are we executing this commands on?
 	nodeAddrs, err := tc.getTargetNodes(ctx, proxyClient)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	if len(nodeAddrs) == 0 {
 		return nil, errors.New("no target host specified")
