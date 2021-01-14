@@ -1215,7 +1215,7 @@ func proxyConnection(ctx context.Context, conn net.Conn, remoteAddr string, dial
 	return trace.NewAggregate(errs...)
 }
 
-// acceptWithContext calls "Accept" on the listener but will unblock when the
+// acceptWithContext calls "Accept" on the listener but with unblock when the
 // context is canceled.
 func acceptWithContext(ctx context.Context, l net.Listener) (net.Conn, error) {
 	acceptCh := make(chan net.Conn, 1)
