@@ -1036,6 +1036,8 @@ func (tc *TeleportClient) GetRemoteDialer(ctx context.Context) (func(n, addr str
 		NodeAddr{Addr: nodeAddrs[0], Namespace: tc.Namespace, Cluster: siteInfo.Name},
 		tc.Config.HostLogin,
 		false)
+	// missing error handler
+	if err != nil { return nil, err }
 
 	return nodeClient.Client.Dial, nil
 }
