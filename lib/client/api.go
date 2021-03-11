@@ -1019,6 +1019,8 @@ func (tc *TeleportClient) GetRemoteDialer(ctx context.Context) (func(n, addr str
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer proxyClient.Close()
+
 	siteInfo, err := proxyClient.currentCluster()
 	if err != nil {
 		return nil, trace.Wrap(err)
