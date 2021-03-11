@@ -22,6 +22,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -1120,6 +1121,51 @@ func (tc *TeleportClient) WithRootClusterClient(ctx context.Context, do func(clt
 	defer clt.Close()
 
 	return trace.Wrap(do(clt))
+}
+
+// Gets a Dialer compatible with a regular network dialer to connect through a remote destination relayed via the
+// specified Proxy and remote client
+// This version takes a context as well compatible with http.Transport's DialContext
+func (tc *TeleportClient) GetRemoteDialerWithContext() (func(ctx context.Context, n string, addr string) (net.Conn, error)) {
+	return func(ctx context.Context, n string, addr string) (net.Conn, error) {
+		dialer, err := tc.GetRemoteDialer(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return dialer(n, addr)
+	}
+}
+
+// Gets a Dialer compatible with a regular network dialer to connect through a remote destination relayed via the
+// specified Proxy and remote client
+func (tc *TeleportClient) GetRemoteDialer(ctx context.Context) (func(n, addr string) (net.Conn, error), error) {
+	// connect to proxy first:
+	if !tc.Config.ProxySpecified() {
+		return nil, errors.New("proxy server is not specified")
+	}
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return nil, err
+	}
+	siteInfo, err := proxyClient.currentCluster()
+	if err != nil {
+		return nil, err
+	}
+	// which nodes are we executing this commands on?
+	nodeAddrs, err := tc.getTargetNodes(ctx, proxyClient)
+	if err != nil {
+		return nil, err
+	}
+	if len(nodeAddrs) == 0 {
+		return nil, errors.New("no target host specified")
+	}
+	nodeClient, err := proxyClient.ConnectToNode(
+		ctx,
+		NodeAddr{Addr: nodeAddrs[0], Namespace: tc.Namespace, Cluster: siteInfo.Name},
+		tc.Config.HostLogin,
+		false)
+
+	return nodeClient.Client.Dial, nil
 }
 
 // SSH connects to a node and, if 'command' is specified, executes the command on it,
