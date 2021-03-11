@@ -768,6 +768,9 @@ type TeleportClient struct {
 	// Note: there's no mutex guarding this or localAgent, making
 	// TeleportClient NOT safe for concurrent use.
 	lastPing *PingResponse
+
+	// Store the proxy client after a connection, so it can be closed when we are done with it.
+	proxyClient *ProxyClient
 }
 
 // ShellCreatedCallback can be supplied for every teleport client. It will
@@ -1015,25 +1018,30 @@ func (tc *TeleportClient) GetRemoteDialer(ctx context.Context) (func(n, addr str
 	if !tc.Config.ProxySpecified() {
 		return nil, errors.New("proxy server is not specified")
 	}
-	proxyClient, err := tc.ConnectToProxy(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer proxyClient.Close()
 
-	siteInfo, err := proxyClient.currentCluster()
+	// If we already have a proxyClient, reuse it
+	// Note that if this is called with two different contexts it may cause issues
+	if tc.proxyClient == nil {
+		var err error
+		tc.proxyClient, err = tc.ConnectToProxy(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	siteInfo, err := tc.proxyClient.currentCluster()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	// which nodes are we executing this commands on?
-	nodeAddrs, err := tc.getTargetNodes(ctx, proxyClient)
+	nodeAddrs, err := tc.getTargetNodes(ctx, tc.proxyClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if len(nodeAddrs) == 0 {
 		return nil, errors.New("no target host specified")
 	}
-	nodeClient, err := proxyClient.ConnectToNode(
+	nodeClient, err := tc.proxyClient.ConnectToNode(
 		ctx,
 		NodeAddr{Addr: nodeAddrs[0], Namespace: tc.Namespace, Cluster: siteInfo.Name},
 		tc.Config.HostLogin,
@@ -1042,6 +1050,14 @@ func (tc *TeleportClient) GetRemoteDialer(ctx context.Context) (func(n, addr str
 	if err != nil { return nil, err }
 
 	return nodeClient.Client.Dial, nil
+}
+
+// Close the dialer created above when you are done with it.
+func (tc *TeleportClient) CloseRemoteDialerProxy() {
+	if tc.proxyClient != nil {
+		tc.proxyClient.Close()
+		tc.proxyClient = nil
+	}
 }
 
 // SSH connects to a node and, if 'command' is specified, executes the command on it,
