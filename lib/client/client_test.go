@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
 	"gopkg.in/check.v1"
@@ -183,8 +184,6 @@ func (s *ClientTestSuite) TestProxyConnection(c *check.C) {
 	}
 }
 
-// TestListenAndForwardCancel verifies that the "Accept" in listenAndForward
-// unblocks when canceled.
 func (s *ClientTestSuite) TestListenAndForwardCancel(c *check.C) {
 	client := &NodeClient{
 		Client: &ssh.Client{
@@ -192,34 +191,47 @@ func (s *ClientTestSuite) TestListenAndForwardCancel(c *check.C) {
 		},
 	}
 
+	// Create two anchors. An "accept" anchor that unblocks once the listener has
+	// accepted a connection and a "unblock" anchor that unblocks when Accept
+	// unblocks.
+	acceptCh := make(chan struct{})
+	unblockCh := make(chan struct{})
+
 	// Create a new cancelable listener.
 	ctx, cancel := context.WithCancel(context.Background())
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	ln, err := newWrappedListener(acceptCh)
 	c.Assert(err, check.IsNil)
 
-	// Start listenAndForward using a context to find out when "Accept" has
+	// Start listenAndForward and close the unblock channel once "Accept" has
 	// unblocked.
-	blockContext, blockCancel := context.WithCancel(context.Background())
 	go func() {
 		client.listenAndForward(ctx, ln, "")
-		blockCancel()
+		close(unblockCh)
 	}()
+
+	// Block until "Accept" has been called. After this it is safe to assume the
+	// listener is accepting.
+	select {
+	case <-acceptCh:
+	case <-time.After(1 * time.Minute):
+		c.Fatal("Timed out waiting for Accept to be called.")
+	}
 
 	// At this point, "Accept" should still be blocking.
 	select {
-	case <-blockContext.Done():
+	case <-unblockCh:
 		c.Fatalf("Failed because Accept was unblocked.")
-	case <-time.After(250 * time.Millisecond):
+	default:
 	}
 
 	// Cancel "Accept" to unblock it.
 	cancel()
 
-	// Verify that "Accept" is no longer blocking.
+	// Verify that "Accept" has unblocked.
 	select {
-	case <-blockContext.Done():
-	case <-time.After(250 * time.Millisecond):
-		c.Fatalf("Timed out waiting for Accept to unblock.")
+	case <-unblockCh:
+	case <-time.After(1 * time.Minute):
+		c.Fatal("Timed out waiting for Accept to unblock.")
 	}
 }
 
@@ -244,44 +256,33 @@ func newTestListener(c *check.C, handle func(net.Conn)) net.Listener {
 // fakeSSHConn is a NOP connection that implements the ssh.Conn interface.
 // Only used in tests.
 type fakeSSHConn struct {
-}
-
-func (c *fakeSSHConn) User() string {
-	return ""
-}
-
-func (c *fakeSSHConn) SessionID() []byte {
-	return nil
-}
-
-func (c *fakeSSHConn) ClientVersion() []byte {
-	return nil
-}
-
-func (c *fakeSSHConn) ServerVersion() []byte {
-	return nil
-}
-
-func (c *fakeSSHConn) RemoteAddr() net.Addr {
-	return nil
-}
-
-func (c *fakeSSHConn) LocalAddr() net.Addr {
-	return nil
-}
-
-func (c *fakeSSHConn) SendRequest(name string, wantReply bool, payload []byte) (bool, []byte, error) {
-	return false, nil, nil
-}
-
-func (c *fakeSSHConn) OpenChannel(name string, data []byte) (ssh.Channel, <-chan *ssh.Request, error) {
-	return nil, nil, nil
+	ssh.Conn
 }
 
 func (c *fakeSSHConn) Close() error {
 	return nil
 }
 
-func (c *fakeSSHConn) Wait() error {
-	return nil
+// wrappedListener is a listener that uses a channel to notify the caller
+// when "Accept" has been called.
+type wrappedListener struct {
+	net.Listener
+	acceptCh chan struct{}
+}
+
+func newWrappedListener(acceptCh chan struct{}) (*wrappedListener, error) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &wrappedListener{
+		Listener: ln,
+		acceptCh: acceptCh,
+	}, nil
+}
+
+func (l wrappedListener) Accept() (net.Conn, error) {
+	close(l.acceptCh)
+	return l.Listener.Accept()
 }
